@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Algorithm Visualizer</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --panel: #111827;
+      --accent: #22d3ee;
+      --text: #e5e7eb;
+      --muted: #9ca3af;
+      --good: #34d399;
+      --warn: #f59e0b;
+      --bad: #f87171;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      background: linear-gradient(180deg, #020617, #0b1220);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 24px;
+    }
+
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+      display: grid;
+      gap: 16px;
+    }
+
+    .card {
+      background: rgba(17, 24, 39, 0.9);
+      border: 1px solid #1f2937;
+      border-radius: 14px;
+      padding: 16px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: 1.7rem;
+    }
+
+    p { color: var(--muted); margin-top: 0; }
+
+    .row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+    }
+
+    button, input[type="number"], input[type="range"], textarea, select {
+      background: #0b1220;
+      color: var(--text);
+      border: 1px solid #374151;
+      border-radius: 10px;
+      padding: 8px 10px;
+      font-size: 14px;
+    }
+
+    button {
+      cursor: pointer;
+      transition: 0.2s;
+    }
+
+    button:hover { border-color: var(--accent); }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .btn-primary {
+      background: #0b2a33;
+      border-color: #155e75;
+      color: #a5f3fc;
+    }
+
+    .split {
+      display: grid;
+      grid-template-columns: 1.1fr 1fr;
+      gap: 16px;
+    }
+
+    @media (max-width: 900px) {
+      .split { grid-template-columns: 1fr; }
+    }
+
+    #bars {
+      height: 360px;
+      width: 100%;
+      display: flex;
+      align-items: flex-end;
+      gap: 4px;
+      border: 1px solid #263244;
+      border-radius: 10px;
+      padding: 10px;
+      background: #020617;
+      overflow: hidden;
+    }
+
+    .bar {
+      flex: 1;
+      min-width: 6px;
+      background: #334155;
+      border-radius: 6px 6px 0 0;
+      transition: height 120ms linear, background 120ms linear;
+    }
+
+    .bar.active { background: var(--warn); }
+    .bar.swap { background: var(--bad); }
+    .bar.done { background: var(--good); }
+
+    textarea {
+      width: 100%;
+      min-height: 240px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
+      line-height: 1.4;
+      resize: vertical;
+    }
+
+    .hint {
+      font-size: 13px;
+      color: #93c5fd;
+      margin-top: 8px;
+    }
+
+    .small {
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    code.inline {
+      background: #0b1220;
+      border: 1px solid #2b3546;
+      border-radius: 6px;
+      padding: 1px 6px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="card">
+      <h1>Algorithm Visual Animated Vision (Phase 1)</h1>
+      <p>Upload/paste algorithm code in a safe template API and watch step-by-step animation.</p>
+      <div class="row">
+        <input id="fileInput" type="file" accept=".js,.txt" />
+        <button id="loadFileBtn">Load File</button>
+        <button id="sampleBubble" class="btn-primary">Load Bubble Sort Sample</button>
+        <button id="sampleSelection">Load Selection Sort Sample</button>
+        <button id="sampleInsertion">Load Insertion Sort Sample</button>
+      </div>
+      <div class="hint">
+        Expected function signature: <code class="inline">function generateSteps(arr){ return steps }</code>
+        where each step is like <code class="inline">{ type: 'compare'|'swap'|'done', i, j, array }</code>
+      </div>
+    </div>
+
+    <div class="card split">
+      <div>
+        <h3>Code Editor</h3>
+        <textarea id="code"></textarea>
+        <p class="small">Tip: You can paste your own algorithm template and click "Build Steps".</p>
+      </div>
+
+      <div>
+        <h3>Controls</h3>
+        <div class="row">
+          <label>Array Size <input id="size" type="number" min="5" max="80" value="30" /></label>
+          <button id="randomize">Randomize</button>
+        </div>
+        <div class="row">
+          <label>Speed <input id="speed" type="range" min="1" max="200" value="40" /></label>
+          <span id="speedVal" class="small">40 ms</span>
+        </div>
+        <div class="row">
+          <button id="build" class="btn-primary">Build Steps</button>
+          <button id="play">Play</button>
+          <button id="pause">Pause</button>
+          <button id="step">Step</button>
+          <button id="reset">Reset</button>
+        </div>
+        <p id="status" class="small">Status: Ready</p>
+        <div id="bars"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const codeEl = document.getElementById('code');
+    const barsEl = document.getElementById('bars');
+    const sizeEl = document.getElementById('size');
+    const speedEl = document.getElementById('speed');
+    const speedValEl = document.getElementById('speedVal');
+    const statusEl = document.getElementById('status');
+    const fileInput = document.getElementById('fileInput');
+
+    let baseArray = [];
+    let currentArray = [];
+    let steps = [];
+    let ptr = 0;
+    let timer = null;
+
+    function randInt(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
+
+    function makeArray(n) {
+      return Array.from({ length: n }, () => randInt(5, 100));
+    }
+
+    function render(arr, highlight = {}) {
+      barsEl.innerHTML = '';
+      arr.forEach((v, idx) => {
+        const bar = document.createElement('div');
+        bar.className = 'bar';
+        bar.style.height = `${(v / 100) * 100}%`;
+        if (idx === highlight.i || idx === highlight.j) {
+          bar.classList.add(highlight.type === 'swap' ? 'swap' : 'active');
+        }
+        if (highlight.type === 'done') bar.classList.add('done');
+        barsEl.appendChild(bar);
+      });
+    }
+
+    function setStatus(msg) { statusEl.textContent = `Status: ${msg}`; }
+
+    function resetState() {
+      currentArray = [...baseArray];
+      ptr = 0;
+      render(currentArray);
+      setStatus('Reset complete');
+    }
+
+    function stop() {
+      if (timer) clearInterval(timer);
+      timer = null;
+    }
+
+    function applyStep(step) {
+      if (!step) return;
+      currentArray = Array.isArray(step.array) ? [...step.array] : currentArray;
+      render(currentArray, step);
+    }
+
+    function doStep() {
+      if (ptr >= steps.length) {
+        stop();
+        setStatus('Finished');
+        return;
+      }
+      applyStep(steps[ptr]);
+      ptr++;
+      setStatus(`Running step ${ptr}/${steps.length}`);
+    }
+
+    function play() {
+      if (!steps.length) return setStatus('No steps. Build first.');
+      stop();
+      timer = setInterval(doStep, Number(speedEl.value));
+      setStatus('Playing');
+    }
+
+    function buildSteps() {
+      stop();
+      try {
+        const userCode = codeEl.value;
+        const wrapped = `${userCode}; return (typeof generateSteps === 'function') ? generateSteps : null;`;
+        const factory = new Function(wrapped);
+        const fn = factory();
+        if (!fn) throw new Error('generateSteps function not found');
+        const generated = fn([...baseArray]);
+        if (!Array.isArray(generated)) throw new Error('generateSteps must return an array of steps');
+        steps = generated;
+        ptr = 0;
+        currentArray = [...baseArray];
+        render(currentArray);
+        setStatus(`Built ${steps.length} steps successfully`);
+      } catch (e) {
+        setStatus(`Build error: ${e.message}`);
+      }
+    }
+
+    function loadSample(kind) {
+      const bubble = `function generateSteps(arr) {
+  const steps = [];
+  const a = [...arr];
+  for (let i = 0; i < a.length - 1; i++) {
+    for (let j = 0; j < a.length - 1 - i; j++) {
+      steps.push({ type: 'compare', i: j, j: j + 1, array: [...a] });
+      if (a[j] > a[j + 1]) {
+        [a[j], a[j + 1]] = [a[j + 1], a[j]];
+        steps.push({ type: 'swap', i: j, j: j + 1, array: [...a] });
+      }
+    }
+  }
+  steps.push({ type: 'done', i: -1, j: -1, array: [...a] });
+  return steps;
+}`;
+
+      const selection = `function generateSteps(arr) {
+  const steps = [];
+  const a = [...arr];
+  for (let i = 0; i < a.length - 1; i++) {
+    let min = i;
+    for (let j = i + 1; j < a.length; j++) {
+      steps.push({ type: 'compare', i: min, j, array: [...a] });
+      if (a[j] < a[min]) min = j;
+    }
+    if (min !== i) {
+      [a[i], a[min]] = [a[min], a[i]];
+      steps.push({ type: 'swap', i, j: min, array: [...a] });
+    }
+  }
+  steps.push({ type: 'done', i: -1, j: -1, array: [...a] });
+  return steps;
+}`;
+
+      const insertion = `function generateSteps(arr) {
+  const steps = [];
+  const a = [...arr];
+  for (let i = 1; i < a.length; i++) {
+    let key = a[i];
+    let j = i - 1;
+    while (j >= 0) {
+      steps.push({ type: 'compare', i: j, j: j + 1, array: [...a] });
+      if (a[j] > key) {
+        a[j + 1] = a[j];
+        steps.push({ type: 'swap', i: j, j: j + 1, array: [...a] });
+        j--;
+      } else break;
+    }
+    a[j + 1] = key;
+    steps.push({ type: 'swap', i: j + 1, j: i, array: [...a] });
+  }
+  steps.push({ type: 'done', i: -1, j: -1, array: [...a] });
+  return steps;
+}`;
+
+      codeEl.value = kind === 'selection' ? selection : kind === 'insertion' ? insertion : bubble;
+      setStatus(`${kind} sample loaded`);
+    }
+
+    document.getElementById('sampleBubble').addEventListener('click', () => loadSample('bubble'));
+    document.getElementById('sampleSelection').addEventListener('click', () => loadSample('selection'));
+    document.getElementById('sampleInsertion').addEventListener('click', () => loadSample('insertion'));
+
+    document.getElementById('randomize').addEventListener('click', () => {
+      const n = Math.max(5, Math.min(80, Number(sizeEl.value) || 30));
+      baseArray = makeArray(n);
+      resetState();
+      setStatus('Array randomized');
+    });
+
+    speedEl.addEventListener('input', () => {
+      speedValEl.textContent = `${speedEl.value} ms`;
+      if (timer) play();
+    });
+
+    document.getElementById('build').addEventListener('click', buildSteps);
+    document.getElementById('play').addEventListener('click', play);
+    document.getElementById('pause').addEventListener('click', () => { stop(); setStatus('Paused'); });
+    document.getElementById('step').addEventListener('click', () => { stop(); doStep(); });
+    document.getElementById('reset').addEventListener('click', () => { stop(); resetState(); });
+
+    document.getElementById('loadFileBtn').addEventListener('click', async () => {
+      const f = fileInput.files && fileInput.files[0];
+      if (!f) return setStatus('Select a .js/.txt file first');
+      try {
+        const txt = await f.text();
+        codeEl.value = txt;
+        setStatus(`Loaded file: ${f.name}`);
+      } catch (e) {
+        setStatus(`File load error: ${e.message}`);
+      }
+    });
+
+    baseArray = makeArray(Number(sizeEl.value));
+    resetState();
+    loadSample('bubble');
+  </script>
+</body>
+</html>
